@@ -1,0 +1,10 @@
+﻿{
+    "profiles": {
+      "ScreenCaptureDemo (Package)": {
+        "commandName": "MsixPackage"
+      },
+      "ScreenCaptureDemo (Unpackaged)": {
+        "commandName": "Project"
+      }
+    }
+}
