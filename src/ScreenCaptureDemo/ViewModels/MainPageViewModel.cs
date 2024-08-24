@@ -1,23 +1,25 @@
-﻿using System.Drawing;
+﻿using System.ComponentModel;
+using System.Drawing;
 using System.Drawing.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using ScreenCaptureDemo.Helpers;
 using ScreenCaptureDemo.Services;
 using Windows.Graphics;
 using Windows.Graphics.Display;
 
 namespace ScreenCaptureDemo.ViewModels;
 
-public partial class MainViewModel : ObservableRecipient
+internal partial class MainPageViewModel : ObservableObject, INotifyPropertyChanged
 {
     private readonly ScreenshotService _screenshot;
 
     [ObservableProperty]
-    private ImageSource? _screenshotImageSource;
+    private ImageSource _screenshotImageSource;
 
-    public MainViewModel(ScreenshotService screenshot)
+    public MainPageViewModel(ScreenshotService screenshot)
     {
         _screenshot = screenshot;
     }
@@ -25,11 +27,7 @@ public partial class MainViewModel : ObservableRecipient
     [RelayCommand]
     public async Task CapturePrimaryDisplay()
     {
-        DisplayId[] displayIds = DisplayServices.FindAll();
-        Bitmap bitmap = await _screenshot.CaptureDisplay(displayIds[0]);
-
-        bitmap.Save(@"C:\Users\adstep\Desktop\Screenshot.png");
-
+        Bitmap bitmap = await _screenshot.CaptureAllDisplays();
 
         ScreenshotImageSource = ToWriteableBitmap(bitmap);
     }

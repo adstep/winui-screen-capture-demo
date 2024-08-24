@@ -16,7 +16,7 @@
         <Button Content="Capture" Command="{x:Bind ViewModel.CapturePrimaryDisplayCommand}"></Button>
 
         <Grid Grid.Row="1">
-            <Image x:Name="ScreenshotImage" Source="{x:Bind ViewModel.ScreenshotImageSource}" />
+            <Image Source="{x:Bind ViewModel.ScreenshotImageSource, Mode=OneWay}" />
         </Grid>
         
     </Grid>

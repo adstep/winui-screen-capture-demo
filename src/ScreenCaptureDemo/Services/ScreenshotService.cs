@@ -1,12 +1,15 @@
 ﻿using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Xaml.Media.Imaging;
+using ScreenCaptureDemo.Helpers;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Windows.Graphics;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using Windows.Graphics.DirectX.Direct3D11;
+using Windows.Graphics.Imaging;
 using WinRT;
 
 namespace ScreenCaptureDemo.Services;
@@ -22,10 +25,55 @@ public class ScreenshotService
     )]
     private static extern uint CreateDirect3D11DeviceFromDXGIDevice(IntPtr dxgiDevice, out IntPtr graphicsDevice);
 
-    public async Task<Bitmap> CaptureDisplay(DisplayId displayId)
+    public async Task<SoftwareBitmap> CaptureDisplayAsSoftwareBitmap(DisplayId displayId)
     {
         GraphicsCaptureItem captureItem = GraphicsCaptureItem.TryCreateFromDisplayId(displayId);
 
+        using ID3D11Device d3D11Device = D3D11.D3D11CreateDevice(
+            Vortice.Direct3D.DriverType.Hardware,
+            DeviceCreationFlags.BgraSupport);
+
+        using var dxgiDevice = d3D11Device.QueryInterface<IDXGIDevice>();
+
+        using IDirect3DDevice direct3DDevice = CreateDirect3DDeviceFromSharpDXDevice(dxgiDevice);
+
+        TaskCompletionSource<SoftwareBitmap> tcs = new TaskCompletionSource<SoftwareBitmap>();
+
+        Direct3D11CaptureFramePool framePool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+            direct3DDevice,
+            DirectXPixelFormat.B8G8R8A8UIntNormalized,
+            1,
+            captureItem.Size);
+
+        framePool.FrameArrived += async (s, e) =>
+        {
+            using Direct3D11CaptureFrame frame = framePool.TryGetNextFrame();
+            tcs.SetResult(await SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface));
+        };
+
+
+        using GraphicsCaptureSession session = framePool.CreateCaptureSession(captureItem);
+        session.IsCursorCaptureEnabled = true;
+
+        session.StartCapture();
+
+        return await tcs.Task;
+    }
+
+    public Task<Bitmap> CaptureDisplay(DisplayId displayId)
+    {
+        GraphicsCaptureItem captureItem = GraphicsCaptureItem.TryCreateFromDisplayId(displayId);
+        return Capture(captureItem);
+    }
+
+    public Task<Bitmap> CaptureAllDisplays()
+    {
+        GraphicsCaptureItem captureItem = GraphicsCaptureItemHelper.CreateForAllDisplays();
+        return Capture(captureItem);
+    }
+
+    private async Task<Bitmap> Capture(GraphicsCaptureItem captureItem)
+    {
         using ID3D11Device d3D11Device = D3D11.D3D11CreateDevice(
             Vortice.Direct3D.DriverType.Hardware,
             DeviceCreationFlags.BgraSupport);
@@ -45,14 +93,12 @@ public class ScreenshotService
         framePool.FrameArrived += (s, e) =>
         {
             using Direct3D11CaptureFrame frame = framePool.TryGetNextFrame();
-            // using SoftwareBitmap softwareBitmap = frame.Surface.ToSoftwareBitmap();
-            // Save the softwareBitmap to a file
             tcs.SetResult(ToBitmap(frame));
         };
 
-
         using GraphicsCaptureSession session = framePool.CreateCaptureSession(captureItem);
         session.IsCursorCaptureEnabled = true;
+        session.IsBorderRequired = false;
 
         session.StartCapture();
 
@@ -131,7 +177,7 @@ public class ScreenshotService
 #if NET5_0_OR_GREATER
         IDirect3DDevice direct3DDevice = MarshalInterface<IDirect3DDevice>.FromAbi(graphicsDevice);
 #else
-            direct3DDevice = Marshal.GetObjectForIUnknown(graphicsDevice) as IDirect3DDevice;
+        direct3DDevice = Marshal.GetObjectForIUnknown(graphicsDevice) as IDirect3DDevice;
 #endif
         Marshal.Release(graphicsDevice);
 
